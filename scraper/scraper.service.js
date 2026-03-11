@@ -1,22 +1,16 @@
 /**
- * Scraper Service — Orchestrates all scrapers in parallel.
+ * Scraper Service — Orchestrates Amazon, Flipkart, and Myntra in parallel.
  * Uses Promise.allSettled so one failed scraper doesn't break others.
  */
 
 const { scrapeAmazon } = require('./amazon.scraper');
-const { scrapeEbay } = require('./ebay.scraper');
-const { scrapeWalmart } = require('./walmart.scraper');
+const { scrapeFlipkart } = require('./flipkart.scraper');
+const { scrapeMyntra } = require('./myntra.scraper');
 const { getMockProducts } = require('./mockData');
 
-/**
- * Run all scrapers in parallel and merge results.
- * @param {string} query - Search term
- * @param {Object} options - { category, brand }
- * @returns {Promise<Array>} - Merged, deduplicated product array
- */
 async function scrapeAll(query, options = {}) {
   const useMockOnly = process.env.USE_MOCK_DATA === 'true';
-  
+
   if (useMockOnly) {
     console.log('[Scraper] Using mock data only (USE_MOCK_DATA=true)');
     return getMockProducts(query);
@@ -25,10 +19,10 @@ async function scrapeAll(query, options = {}) {
   console.log(`[Scraper] Starting parallel scrape for: "${query}"`);
   const start = Date.now();
 
-  const [amazonResult, ebayResult, walmartResult] = await Promise.allSettled([
+  const [amazonResult, flipkartResult, myntraResult] = await Promise.allSettled([
     scrapeAmazon(query),
-    scrapeEbay(query),
-    scrapeWalmart(query),
+    scrapeFlipkart(query),
+    scrapeMyntra(query),
   ]);
 
   const allProducts = [];
@@ -40,18 +34,18 @@ async function scrapeAll(query, options = {}) {
     allProducts.push(...getMockProducts(query).filter(p => p.source === 'Amazon'));
   }
 
-  if (ebayResult.status === 'fulfilled') {
-    allProducts.push(...ebayResult.value);
+  if (flipkartResult.status === 'fulfilled') {
+    allProducts.push(...flipkartResult.value);
   } else {
-    console.error('[Scraper] eBay failed:', ebayResult.reason?.message);
-    allProducts.push(...getMockProducts(query).filter(p => p.source === 'eBay'));
+    console.error('[Scraper] Flipkart failed:', flipkartResult.reason?.message);
+    allProducts.push(...getMockProducts(query).filter(p => p.source === 'Flipkart'));
   }
 
-  if (walmartResult.status === 'fulfilled') {
-    allProducts.push(...walmartResult.value);
+  if (myntraResult.status === 'fulfilled') {
+    allProducts.push(...myntraResult.value);
   } else {
-    console.error('[Scraper] Walmart failed:', walmartResult.reason?.message);
-    allProducts.push(...getMockProducts(query).filter(p => p.source === 'Walmart'));
+    console.error('[Scraper] Myntra failed:', myntraResult.reason?.message);
+    allProducts.push(...getMockProducts(query).filter(p => p.source === 'Myntra'));
   }
 
   // Deduplicate by productUrl
