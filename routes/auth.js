@@ -7,6 +7,15 @@ const { protect } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
 const { validateRegister, validateLogin } = require('../middleware/validate');
 
+// ── Helper: ensure CLIENT_URL always has https:// ─────────────────────────────
+// If Render env var is set without the protocol (e.g., "myapp.vercel.app")
+// the redirect becomes a relative path on the backend → Route not found.
+function getClientUrl() {
+  const url = process.env.CLIENT_URL || 'http://localhost:5173';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `https://${url}`;
+}
+
 // ── Email/Password Auth ───────────────────────────────────────────────────────
 router.post('/register', authLimiter, validateRegister, register);
 router.post('/login', authLimiter, validateLogin, login);
@@ -19,12 +28,16 @@ router.get('/google', passport.authenticate('google', { scope: ['profile', 'emai
 // Step 2: Google sends user back here after auth
 router.get(
   '/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL}/login?error=oauth_failed` }),
+  passport.authenticate('google', {
+    session: false,
+    failureRedirect: `${getClientUrl()}/login?error=oauth_failed`,
+  }),
   (req, res) => {
+    const clientUrl = getClientUrl();
     // Generate JWT for the authenticated user
     const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
-    // Redirect to frontend with token in URL param (OAuthRedirect page will capture it)
-    res.redirect(`${process.env.CLIENT_URL}/oauth-redirect?token=${token}`);
+    // Absolute redirect to frontend /oauth-redirect page
+    res.redirect(`${clientUrl}/oauth-redirect?token=${token}`);
   }
 );
 

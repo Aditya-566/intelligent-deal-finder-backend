@@ -7,7 +7,11 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${process.env.SERVER_URL || 'http://localhost:5000'}/auth/google/callback`,
+      callbackURL: (() => {
+        const base = process.env.SERVER_URL || 'http://localhost:5000';
+        const url = (base.startsWith('http://') || base.startsWith('https://')) ? base : `https://${base}`;
+        return `${url}/auth/google/callback`;
+      })(),
     },
     async (_accessToken, _refreshToken, profile, done) => {
       try {
