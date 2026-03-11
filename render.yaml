@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: intelligent-deal-finder-backend
+    runtime: node
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: .
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false          # Set in Render dashboard
+      - key: JWT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: CLIENT_URL
+        sync: false          # e.g. https://your-app.vercel.app
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false          # Optional – Redis add-on URL
+      - key: SENTRY_DSN
+        sync: false          # Optional – from Sentry project
+      - key: SCRAPERAPI_KEY
+        sync: false          # Optional – from scraperapi.com
+      - key: FROM_EMAIL
+        value: noreply@intelligentdealfinder.com

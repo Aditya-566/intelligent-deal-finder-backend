@@ -1,6 +1,7 @@
 const scraperService = require('../scraper/scraper.service');
 const PriceHistory = require('../models/PriceHistory');
-const cache = require('../utils/cache');
+const { getCache, setCache } = require('../config/redis');
+const logger = require('../config/logger');
 
 // GET /api/search
 const search = async (req, res) => {
@@ -15,15 +16,15 @@ const search = async (req, res) => {
     const max = parseFloat(maxPrice) || 999999;
     const sort = sortBy || 'price';
 
-    // Check cache
+    // Check Redis cache (10-min TTL)
     const cacheKey = `search:${q}:${min}:${max}:${category || ''}:${brand || ''}`;
-    const cached = cache.get(cacheKey);
+    const cached = await getCache(cacheKey);
     if (cached) {
-      console.log('⚡ Serving from cache:', cacheKey);
+      logger.info(`⚡ Cache hit: ${cacheKey}`);
       return res.json({ results: cached, fromCache: true, total: cached.length });
     }
 
-    console.log(`🔍 Searching for: "${q}" | Budget: $${min} - $${max}`);
+    logger.info(`🔍 Searching for: "${q}" | Budget: $${min} - $${max}`);
 
     // Run scrapers
     const allProducts = await scraperService.scrapeAll(q, { category, brand });
@@ -66,8 +67,8 @@ const search = async (req, res) => {
       }
     }
 
-    // Cache results for 5 minutes
-    cache.set(cacheKey, top5);
+    // Cache results in Redis for 10 minutes
+    await setCache(cacheKey, top5, 600);
 
     res.json({
       results: top5,
@@ -77,7 +78,7 @@ const search = async (req, res) => {
       filters: { min, max, category, brand, sort },
     });
   } catch (err) {
-    console.error('Search error:', err.message);
+    logger.error('Search error:', err.message);
     res.status(500).json({ message: 'Search failed', error: err.message });
   }
 };

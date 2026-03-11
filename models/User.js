@@ -4,7 +4,10 @@ const bcrypt = require('bcryptjs');
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  password: { type: String, required: true, minlength: 6 },
+  // Optional: Google OAuth users don't have a password
+  password: { type: String, minlength: 6, default: null },
+  googleId: { type: String, sparse: true, index: true },
+  avatar: { type: String, default: null },
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {
