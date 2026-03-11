@@ -34,7 +34,7 @@ async function scrapeAmazon(query) {
     );
     await page.setViewport({ width: 1366, height: 768 });
 
-    const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(query)}&ref=nb_sb_noss`;
+    const searchUrl = `https://www.amazon.in/s?k=${encodeURIComponent(query)}&ref=nb_sb_noss`;
     console.log(`[Amazon] Scraping: ${searchUrl}`);
 
     await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -77,7 +77,7 @@ async function scrapeAmazon(query) {
             price,
             originalPrice: originalPrice && originalPrice > price ? originalPrice : null,
             imageUrl: imageEl ? imageEl.src : '',
-            productUrl: linkEl ? `https://www.amazon.com${linkEl.getAttribute('href')}` : '',
+            productUrl: linkEl ? `https://www.amazon.in${linkEl.getAttribute('href')}` : '',
             source: 'Amazon',
             rating: ratingEl ? parseFloat(ratingEl.textContent) : null,
             reviews: reviewsEl ? parseInt(reviewsEl.textContent.replace(/,/g, '')) : null,

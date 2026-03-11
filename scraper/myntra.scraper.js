@@ -66,14 +66,14 @@ async function scrapeMyntra(query) {
           const href = linkEl ? linkEl.getAttribute('href') : '';
           const productUrl = href.startsWith('http') ? href : `https://www.myntra.com/${href}`;
 
-          // Convert INR → USD (~83)
-          const priceUSD = parseFloat((price / 83).toFixed(2));
-          const origPriceUSD = originalPrice ? parseFloat((originalPrice / 83).toFixed(2)) : null;
+          // Keep as INR
+          const priceINR = parseFloat(price.toFixed(2));
+          const origPriceINR = originalPrice ? parseFloat(originalPrice.toFixed(2)) : null;
 
           results.push({
             productName: fullName,
-            price: priceUSD,
-            originalPrice: origPriceUSD && origPriceUSD > priceUSD ? origPriceUSD : null,
+            price: priceINR,
+            originalPrice: origPriceINR && origPriceINR > priceINR ? origPriceINR : null,
             imageUrl: imageEl ? (imageEl.src || imageEl.dataset.src || '') : '',
             productUrl,
             source: 'Myntra',

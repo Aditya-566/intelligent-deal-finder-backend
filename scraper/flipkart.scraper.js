@@ -64,15 +64,15 @@ async function scrapeFlipkart(query) {
           const href = linkEl.attr('href') || '';
           const productUrl = href.startsWith('http') ? href : `https://www.flipkart.com${href}`;
 
-          // Convert INR to USD (approximate rate ~83)
-          const priceUSD = parseFloat((price / 83).toFixed(2));
-          const origPriceUSD = originalPrice ? parseFloat((originalPrice / 83).toFixed(2)) : null;
+          // Keep as INR
+          const priceINR = parseFloat(price.toFixed(2));
+          const origPriceINR = originalPrice ? parseFloat(originalPrice.toFixed(2)) : null;
 
           if (productUrl.includes('/p/')) {
             products.push({
               productName: name,
-              price: priceUSD,
-              originalPrice: origPriceUSD && origPriceUSD > priceUSD ? origPriceUSD : null,
+              price: priceINR,
+              originalPrice: origPriceINR && origPriceINR > priceINR ? origPriceINR : null,
               imageUrl: imageEl.attr('src') || imageEl.attr('data-src') || '',
               productUrl,
               source: 'Flipkart',
