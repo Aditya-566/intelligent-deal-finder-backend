@@ -21,7 +21,7 @@ async function scrapeFlipkart(query) {
     const products = [];
 
     // Flipkart search results selector - checking both list and grid views
-    $('div[data-id]').each((i, el) => {
+    $('div[data-id], .cPHDOP, ._1AtVbE, ._75nlfW').each((i, el) => {
       try {
         const item = $(el);
         const asin = item.attr('data-id');

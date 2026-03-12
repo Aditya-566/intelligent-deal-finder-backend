@@ -11,7 +11,7 @@ async function scrapeAll(query, options = {}) {
   console.log(`[Scraper] Starting parallel scrape for: "${query}"`);
   const start = Date.now();
 
-  const scraperTimeout = 40000;
+  const scraperTimeout = 35000;
   const withTimeout = (promise, name) => 
     Promise.race([
       promise,
@@ -52,15 +52,22 @@ async function scrapeAll(query, options = {}) {
     return true;
   });
 
-  // Filter by brand/category if provided
+  // Filter by brand/category if provided - but only if they aren't already in the query
   let filtered = unique;
+  const lowerQuery = query.toLowerCase();
+
   if (options.brand) {
     const brand = options.brand.toLowerCase();
-    filtered = filtered.filter(p => p.productName.toLowerCase().includes(brand));
+    if (!lowerQuery.includes(brand)) {
+        filtered = filtered.filter(p => p.productName.toLowerCase().includes(brand));
+    }
   }
-  if (options.category && options.category !== 'all') {
+  if (options.category && options.category !== 'All Categories' && options.category !== '') {
     const cat = options.category.toLowerCase();
-    filtered = filtered.filter(p => p.productName.toLowerCase().includes(cat));
+    // Only filter if the category isn't already the main thing they searched for
+    if (!lowerQuery.includes(cat.slice(0, -1))) { // slice -1 to handle plural like 'Headphones' vs 'Headphone'
+        filtered = filtered.filter(p => p.productName.toLowerCase().includes(cat) || p.productName.toLowerCase().includes(cat.slice(0, -1)));
+    }
   }
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);

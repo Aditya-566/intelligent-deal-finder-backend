@@ -24,6 +24,7 @@ if (process.env.SENTRY_DSN) {
 }
 
 const app = express();
+app.set('trust proxy', 1); // Required for Render/load balancers to identify client IP correctly
 
 // ── Security middleware ────────────────────────────────────────────────────────
 app.use(helmet({
