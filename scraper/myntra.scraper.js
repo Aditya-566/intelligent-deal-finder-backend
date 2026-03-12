@@ -1,100 +1,74 @@
 /**
- * Myntra Scraper
- * Uses Puppeteer (Myntra requires JS rendering) to scrape search results.
- * Falls back to mock data on error or block.
+ * Myntra Scraper (ScraperAPI + Cheerio)
+ * Scrapes myntra.com using ScraperAPI to bypass bot protections.
  */
 
-const { getMockProducts } = require('./mockData');
-const { getRandomUserAgent } = require('./proxy');
-
-const delay = (ms) => new Promise(r => setTimeout(r, ms));
+const axios = require('axios');
+const cheerio = require('cheerio');
+const { getProxiedUrl, withRetry } = require('./proxy');
 
 async function scrapeMyntra(query) {
-  try {
-    const puppeteer = require('puppeteer-extra');
-    const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-    puppeteer.use(StealthPlugin());
-
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-      ],
-    });
-
-    const page = await browser.newPage();
-    await page.setUserAgent(getRandomUserAgent());
-    await page.setViewport({ width: 1366, height: 768 });
-
+  return withRetry(async () => {
     const searchUrl = `https://www.myntra.com/${encodeURIComponent(query.replace(/\s+/g, '-'))}?rawQuery=${encodeURIComponent(query)}`;
-    console.log(`[Myntra] Scraping: ${searchUrl}`);
+    const proxiedUrl = getProxiedUrl(searchUrl, false, true); // Myntra heavily relies on React rendering
+    
+    console.log(`[Myntra] Scraping via ScraperAPI: ${searchUrl}`);
 
-    await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 35000 });
-    await delay(2000 + Math.random() * 1000);
+    const { data } = await axios.get(proxiedUrl, { timeout: 45000 });
+    const $ = cheerio.load(data);
+    const products = [];
 
-    const products = await page.evaluate(() => {
-      const items = document.querySelectorAll('.product-base, li.product-base');
-      const results = [];
+    // Myntra uses list items for products
+    // Myntra uses list items or divs with class .product-base
+    $('.product-base').each((i, el) => {
+      try {
+        const item = $(el);
+        const brand = item.find('.product-brand').text().trim();
+        const productNamePart = item.find('.product-product').text().trim();
+        const fullName = brand ? `${brand} ${productNamePart}` : productNamePart;
+        
+        if (!fullName) return;
 
-      items.forEach(item => {
-        try {
-          const brandEl = item.querySelector('.product-brand');
-          const nameEl = item.querySelector('.product-product');
-          const priceEl = item.querySelector('.product-discountedPrice');
-          const origPriceEl = item.querySelector('.product-strike');
-          const imageEl = item.querySelector('img.img-responsive, .product-imageSlider img');
-          const linkEl = item.querySelector('a');
+        // Skip Relevance Filtering for debugging or if specific enough
+        // const queryTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+        // const nameLower = fullName.toLowerCase();
+        // const isRelevant = queryTokens.every(token => nameLower.includes(token));
+        // if (!isRelevant) return;
 
-          const brand = brandEl ? brandEl.textContent.trim() : '';
-          const name = nameEl ? nameEl.textContent.trim() : '';
-          const fullName = brand && name ? `${brand} ${name}` : (brand || name);
-          if (!fullName) return;
+        const priceEl = item.find('.product-discountedPrice');
+        const priceText = priceEl.text() || item.find('.product-price').text();
+        const priceClean = priceText.replace(/[^\d]/g, '');
+        const price = parseFloat(priceClean);
+        if (isNaN(price) || price <= 0) return;
 
-          const priceStr = priceEl ? priceEl.textContent.replace(/[₹,\s]/g, '') : '';
-          const price = parseFloat(priceStr);
-          if (isNaN(price) || price <= 0) return;
+        const origPriceEl = item.find('.product-strike');
+        const origPriceClean = origPriceEl.text().replace(/[^\d]/g, '');
+        const originalPrice = parseFloat(origPriceClean) || null;
 
-          const origPriceStr = origPriceEl ? origPriceEl.textContent.replace(/[₹,\s]/g, '') : '';
-          const originalPrice = parseFloat(origPriceStr) || null;
+        const imgEl = item.find('img');
+        const imageUrl = imgEl.attr('src') || imgEl.attr('data-src') || '';
+        
+        const href = item.find('a').attr('href') || '';
+        const productUrl = href.startsWith('http') ? href : `https://www.myntra.com/${href}`;
 
-          const href = linkEl ? linkEl.getAttribute('href') : '';
-          const productUrl = href.startsWith('http') ? href : `https://www.myntra.com/${href}`;
-
-          // Keep as INR
-          const priceINR = parseFloat(price.toFixed(2));
-          const origPriceINR = originalPrice ? parseFloat(originalPrice.toFixed(2)) : null;
-
-          results.push({
-            productName: fullName,
-            price: priceINR,
-            originalPrice: origPriceINR && origPriceINR > priceINR ? origPriceINR : null,
-            imageUrl: imageEl ? (imageEl.src || imageEl.dataset.src || '') : '',
-            productUrl,
-            source: 'Myntra',
-            rating: null,
-            reviews: null,
-          });
-        } catch (e) { /* skip */ }
-      });
-
-      return results.slice(0, 10);
+        products.push({
+          productName: fullName,
+          price: price,
+          originalPrice: originalPrice && originalPrice > price ? originalPrice : null,
+          imageUrl,
+          productUrl,
+          source: 'Myntra',
+          rating: null,
+          reviews: null,
+        });
+      } catch (e) {
+        // skip malformed item
+      }
     });
 
-    await browser.close();
-    console.log(`[Myntra] Found ${products.length} products`);
-
-    if (products.length === 0) return getMockProducts(query).filter(p => p.source === 'Myntra');
-    return products;
-  } catch (err) {
-    console.error('[Myntra] Scrape failed:', err.message);
-    return getMockProducts(query).filter(p => p.source === 'Myntra');
-  }
+    console.log(`[Myntra] Found ${products.length} relevant products`);
+    return products.slice(0, 10);
+  }, 2, 2000);
 }
 
 module.exports = { scrapeMyntra };

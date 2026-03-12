@@ -1,100 +1,79 @@
 /**
- * Amazon Scraper
- * Uses Puppeteer with stealth plugin to scrape Amazon search results.
- * Falls back to mock data if blocked or on error.
+ * Amazon Scraper (ScraperAPI + Cheerio)
+ * Scrapes amazon.in using ScraperAPI to bypass bot protections.
  */
 
-const { getMockProducts } = require('./mockData');
-
-const delay = (ms) => new Promise(r => setTimeout(r, ms));
+const axios = require('axios');
+const cheerio = require('cheerio');
+const { getProxiedUrl, withRetry } = require('./proxy');
 
 async function scrapeAmazon(query) {
-  try {
-    // Try to load puppeteer-extra with stealth
-    const puppeteer = require('puppeteer-extra');
-    const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-    puppeteer.use(StealthPlugin());
+  return withRetry(async () => {
+    const searchUrl = `https://www.amazon.in/s?k=${encodeURIComponent(query)}`;
+    const proxiedUrl = getProxiedUrl(searchUrl, false, true); // Amazon definitely needs rendering for full results
+    
+    console.log(`[Amazon] Scraping via ScraperAPI: ${searchUrl}`);
 
-    const browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-      ],
-    });
+    try {
+      const { data } = await axios.get(proxiedUrl, { timeout: 60000 });
+      console.log(`[Amazon] HTML Length: ${data.length}`);
+      
+      const $ = cheerio.load(data);
+      const products = [];
 
-    const page = await browser.newPage();
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-    );
-    await page.setViewport({ width: 1366, height: 768 });
-
-    const searchUrl = `https://www.amazon.in/s?k=${encodeURIComponent(query)}&ref=nb_sb_noss`;
-    console.log(`[Amazon] Scraping: ${searchUrl}`);
-
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await delay(1500 + Math.random() * 1000);
-
-    // Check if blocked (CAPTCHA or login page)
-    const title = await page.title();
-    if (title.toLowerCase().includes('robot') || title.toLowerCase().includes('captcha')) {
-      console.warn('[Amazon] Detected bot protection, using mock data');
-      await browser.close();
-      return getMockProducts(query).filter(p => p.source === 'Amazon');
-    }
-
-    const products = await page.evaluate(() => {
-      const items = document.querySelectorAll('[data-component-type="s-search-result"]');
-      const results = [];
-
-      items.forEach(item => {
+      // Amazon search results selector
+      $('.s-result-item').each((i, el) => {
         try {
-          const nameEl = item.querySelector('h2 a span');
-          const priceWholeEl = item.querySelector('.a-price-whole');
-          const priceFractionEl = item.querySelector('.a-price-fraction');
-          const imageEl = item.querySelector('.s-image');
-          const linkEl = item.querySelector('h2 a');
-          const ratingEl = item.querySelector('.a-icon-alt');
-          const reviewsEl = item.querySelector('[aria-label*="stars"] + span a');
-          const originalPriceEl = item.querySelector('.a-text-price span');
+          const asin = $(el).attr('data-asin');
+          if (!asin || asin.length < 5) return;
 
-          if (!nameEl || !priceWholeEl) return;
+          const nameEl = $(el).find('h2');
+          const priceWholeEl = $(el).find('.a-price-whole').first();
+          const imageEl = $(el).find('img.s-image');
+          const linkEl = $(el).find('a.a-link-normal.s-no-outline, a.a-link-normal.s-underline-text.s-underline-link-text, h2 a').first();
+          const ratingEl = $(el).find('.a-icon-alt');
+          const reviewsEl = $(el).find('.a-size-base.s-underline-text');
+          const originalPriceEl = $(el).find('.a-text-price span').first();
 
-          const priceStr = priceWholeEl.textContent.replace(/,/g, '') + (priceFractionEl ? `.${priceFractionEl.textContent}` : '.00');
-          const price = parseFloat(priceStr);
-          if (isNaN(price) || price <= 0) return;
+          const name = nameEl.text().trim();
+          if (!name) return;
 
-          const originalPriceStr = originalPriceEl ? originalPriceEl.textContent.replace(/[^0-9.]/g, '') : null;
+          // Price cleaning
+          const priceClean = priceWholeEl.text().replace(/[^\d]/g, '');
+          const price = parseFloat(priceClean);
+          // Allow items with price if we want, but Amazon sometimes has ads without prices
+          if (isNaN(price)) return;
+
+          const originalPriceStr = originalPriceEl.length ? originalPriceEl.text().replace(/[^\d]/g, '') : null;
           const originalPrice = originalPriceStr ? parseFloat(originalPriceStr) : null;
 
-          results.push({
-            productName: nameEl.textContent.trim(),
-            price,
+          const productUrlRaw = linkEl.attr('href') || '';
+          const productUrl = productUrlRaw.startsWith('http') ? productUrlRaw : `https://www.amazon.in${productUrlRaw}`;
+
+          products.push({
+            productName: name,
+            price: price,
             originalPrice: originalPrice && originalPrice > price ? originalPrice : null,
-            imageUrl: imageEl ? imageEl.src : '',
-            productUrl: linkEl ? `https://www.amazon.in${linkEl.getAttribute('href')}` : '',
+            imageUrl: imageEl.attr('src') || '',
+            productUrl,
             source: 'Amazon',
-            rating: ratingEl ? parseFloat(ratingEl.textContent) : null,
-            reviews: reviewsEl ? parseInt(reviewsEl.textContent.replace(/,/g, '')) : null,
+            rating: ratingEl.length ? parseFloat(ratingEl.text().split(' ')[0]) : null,
+            reviews: reviewsEl.length ? parseInt(reviewsEl.first().text().replace(/[^\d]/g, '')) : null,
           });
-        } catch (e) { /* skip malformed item */ }
+        } catch (err) { /* skip */ }
       });
 
-      return results.slice(0, 10);
-    });
-
-    await browser.close();
-    console.log(`[Amazon] Found ${products.length} products`);
-    return products;
-  } catch (err) {
-    console.error('[Amazon] Scrape failed:', err.message);
-    return getMockProducts(query).filter(p => p.source === 'Amazon');
-  }
+      console.log(`[Amazon] Found ${products.length} relevant products`);
+      return products.slice(0, 10);
+    } catch (err) {
+      if (err.response) {
+          console.error('[Amazon Axios Error]:', err.response.status, err.response.data);
+      } else {
+          console.error('[Amazon Error]:', err.message);
+      }
+      throw err;
+    }
+  }, 2, 2000); // 2 attempts maximum
 }
 
 module.exports = { scrapeAmazon };

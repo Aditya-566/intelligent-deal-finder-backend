@@ -6,16 +6,8 @@
 const { scrapeAmazon } = require('./amazon.scraper');
 const { scrapeFlipkart } = require('./flipkart.scraper');
 const { scrapeMyntra } = require('./myntra.scraper');
-const { getMockProducts } = require('./mockData');
 
 async function scrapeAll(query, options = {}) {
-  const useMockOnly = process.env.USE_MOCK_DATA === 'true';
-
-  if (useMockOnly) {
-    console.log('[Scraper] Using mock data only (USE_MOCK_DATA=true)');
-    return getMockProducts(query);
-  }
-
   console.log(`[Scraper] Starting parallel scrape for: "${query}"`);
   const start = Date.now();
 
@@ -31,21 +23,18 @@ async function scrapeAll(query, options = {}) {
     allProducts.push(...amazonResult.value);
   } else {
     console.error('[Scraper] Amazon failed:', amazonResult.reason?.message);
-    allProducts.push(...getMockProducts(query).filter(p => p.source === 'Amazon'));
   }
 
   if (flipkartResult.status === 'fulfilled') {
     allProducts.push(...flipkartResult.value);
   } else {
     console.error('[Scraper] Flipkart failed:', flipkartResult.reason?.message);
-    allProducts.push(...getMockProducts(query).filter(p => p.source === 'Flipkart'));
   }
 
   if (myntraResult.status === 'fulfilled') {
     allProducts.push(...myntraResult.value);
   } else {
     console.error('[Scraper] Myntra failed:', myntraResult.reason?.message);
-    allProducts.push(...getMockProducts(query).filter(p => p.source === 'Myntra'));
   }
 
   // Deduplicate by productUrl
