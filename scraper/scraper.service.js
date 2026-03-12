@@ -11,10 +11,17 @@ async function scrapeAll(query, options = {}) {
   console.log(`[Scraper] Starting parallel scrape for: "${query}"`);
   const start = Date.now();
 
+  const scraperTimeout = 40000;
+  const withTimeout = (promise, name) => 
+    Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`${name} timed out after ${scraperTimeout/1000}s`)), scraperTimeout))
+    ]);
+
   const [amazonResult, flipkartResult, myntraResult] = await Promise.allSettled([
-    scrapeAmazon(query),
-    scrapeFlipkart(query),
-    scrapeMyntra(query),
+    withTimeout(scrapeAmazon(query), 'Amazon'),
+    withTimeout(scrapeFlipkart(query), 'Flipkart'),
+    withTimeout(scrapeMyntra(query), 'Myntra'),
   ]);
 
   const allProducts = [];
