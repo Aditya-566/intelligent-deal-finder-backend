@@ -32,7 +32,7 @@ function getRandomUserAgent() {
 function getProxiedUrl(targetUrl, premium = false, render = true) {
   const key = process.env.SCRAPERAPI_KEY;
   if (!key) return targetUrl;
-  return `http://api.scraperapi.com?api_key=${key}&url=${encodeURIComponent(targetUrl)}&render=${render}${premium ? '&premium=true' : ''}`;
+  return `https://api.scraperapi.com?api_key=${key}&url=${encodeURIComponent(targetUrl)}&render=${render}${premium ? '&premium=true' : ''}`;
 }
 
 // ── Retry helper ──────────────────────────────────────────────────────────────
