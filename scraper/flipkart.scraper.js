@@ -5,16 +5,14 @@
 
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { getProxiedUrl, withRetry } = require('./proxy');
+const { fetchWithProxy, withRetry } = require('./proxy');
 
 async function scrapeFlipkart(query) {
   return withRetry(async () => {
     const searchUrl = `https://www.flipkart.com/search?q=${encodeURIComponent(query)}&otracker=search&marketplace=FLIPKART`;
-    const proxiedUrl = getProxiedUrl(searchUrl, false, true); // Flipkart reliably needs rendering for search items
-    
-    console.log(`[Flipkart] Scraping via ScraperAPI: ${searchUrl}`);
+    console.log(`[Flipkart] Scraping via Bright Data: ${searchUrl}`);
 
-    const { data } = await axios.get(proxiedUrl, { timeout: 60000 });
+    const data = await fetchWithProxy(searchUrl, 60000);
     console.log(`[Flipkart] HTML Length: ${data.length}`);
 
     const $ = cheerio.load(data);

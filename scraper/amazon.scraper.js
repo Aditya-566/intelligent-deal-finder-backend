@@ -5,17 +5,15 @@
 
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { getProxiedUrl, withRetry } = require('./proxy');
+const { fetchWithProxy, withRetry } = require('./proxy');
 
 async function scrapeAmazon(query) {
   return withRetry(async () => {
     const searchUrl = `https://www.amazon.in/s?k=${encodeURIComponent(query)}`;
-    const proxiedUrl = getProxiedUrl(searchUrl, false, true); // Amazon definitely needs rendering for full results
-    
-    console.log(`[Amazon] Scraping via ScraperAPI: ${searchUrl}`);
+    console.log(`[Amazon] Scraping via Bright Data: ${searchUrl}`);
 
     try {
-      const { data } = await axios.get(proxiedUrl, { timeout: 60000 });
+      const data = await fetchWithProxy(searchUrl, 60000);
       console.log(`[Amazon] HTML Length: ${data.length}`);
       
       const $ = cheerio.load(data);

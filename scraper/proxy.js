@@ -21,18 +21,41 @@ function getRandomUserAgent() {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
-// ── ScraperAPI URL builder ────────────────────────────────────────────────────
+// ── Bright Data Web Unlocker helper ─────────────────────────────────────────
 
 /**
- * Wraps a target URL with ScraperAPI proxy if SCRAPERAPI_KEY is set.
- * Falls back to the original URL otherwise.
+ * Makes an HTTP GET to the target URL, routing through Bright Data
+ * Web Unlocker if BRIGHTDATA_API_KEY is set, otherwise direct.
  * @param {string} targetUrl
- * @returns {string}
+ * @param {number} timeoutMs
+ * @returns {Promise<string>} HTML body
  */
-function getProxiedUrl(targetUrl, premium = false, render = true) {
-  const key = process.env.SCRAPERAPI_KEY;
-  if (!key) return targetUrl;
-  return `https://api.scraperapi.com?api_key=${key}&url=${encodeURIComponent(targetUrl)}&render=${render}${premium ? '&premium=true' : ''}`;
+async function fetchWithProxy(targetUrl, timeoutMs = 60000) {
+  const apiKey = process.env.BRIGHTDATA_API_KEY;
+  const zone   = process.env.BRIGHTDATA_ZONE || 'web_unlocker1';
+
+  if (apiKey) {
+    // Bright Data Web Unlocker — POST to their API
+    const response = await axios.post(
+      'https://api.brightdata.com/request',
+      { zone, url: targetUrl, format: 'raw' },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        timeout: timeoutMs,
+      }
+    );
+    return response.data;
+  }
+
+  // Fallback: direct request with a rotated User-Agent
+  const response = await axios.get(targetUrl, {
+    headers: { 'User-Agent': getRandomUserAgent() },
+    timeout: timeoutMs,
+  });
+  return response.data;
 }
 
 // ── Retry helper ──────────────────────────────────────────────────────────────
@@ -105,4 +128,4 @@ async function isAllowedByRobots(targetUrl) {
   }
 }
 
-module.exports = { getRandomUserAgent, getProxiedUrl, withRetry, isAllowedByRobots };
+module.exports = { getRandomUserAgent, fetchWithProxy, withRetry, isAllowedByRobots };

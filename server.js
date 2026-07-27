@@ -1,7 +1,9 @@
+const dotenv = require('dotenv');
+dotenv.config(); // ⚠️ Must be first — loads .env before any other module reads process.env
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const session = require('express-session');
@@ -9,8 +11,6 @@ const passport = require('./config/passport');
 const { apiLimiter, searchLimiter } = require('./middleware/rateLimiter');
 const logger = require('./config/logger');
 const { startPriceAlertJob } = require('./jobs/priceAlertJob');
-
-dotenv.config();
 
 // ── Sentry (optional — only init if DSN is set) ────────────────────────────────
 let Sentry;

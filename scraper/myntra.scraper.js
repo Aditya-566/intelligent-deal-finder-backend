@@ -5,16 +5,14 @@
 
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { getProxiedUrl, withRetry } = require('./proxy');
+const { fetchWithProxy, withRetry } = require('./proxy');
 
 async function scrapeMyntra(query) {
   return withRetry(async () => {
     const searchUrl = `https://www.myntra.com/${encodeURIComponent(query.replace(/\s+/g, '-'))}?rawQuery=${encodeURIComponent(query)}`;
-    const proxiedUrl = getProxiedUrl(searchUrl, false, true); // Myntra heavily relies on React rendering
-    
-    console.log(`[Myntra] Scraping via ScraperAPI: ${searchUrl}`);
+    console.log(`[Myntra] Scraping via Bright Data: ${searchUrl}`);
 
-    const { data } = await axios.get(proxiedUrl, { timeout: 45000 });
+    const data = await fetchWithProxy(searchUrl, 45000);
     const $ = cheerio.load(data);
     const products = [];
 
