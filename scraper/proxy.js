@@ -21,32 +21,24 @@ function getRandomUserAgent() {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
-// ── Bright Data Web Unlocker helper ─────────────────────────────────────────
+// ── ScraperAPI helper ────────────────────────────────────────────────────────
 
 /**
- * Makes an HTTP GET to the target URL, routing through Bright Data
- * Web Unlocker if BRIGHTDATA_API_KEY is set, otherwise direct.
+ * Makes an HTTP GET to the target URL, routing through ScraperAPI
+ * if SCRAPERAPI_KEY is set, otherwise falls back to a direct request.
  * @param {string} targetUrl
  * @param {number} timeoutMs
  * @returns {Promise<string>} HTML body
  */
 async function fetchWithProxy(targetUrl, timeoutMs = 60000) {
-  const apiKey = process.env.BRIGHTDATA_API_KEY;
-  const zone   = process.env.BRIGHTDATA_ZONE || 'web_unlocker1';
+  const apiKey = process.env.SCRAPERAPI_KEY;
 
   if (apiKey) {
-    // Bright Data Web Unlocker — POST to their API
-    const response = await axios.post(
-      'https://api.brightdata.com/request',
-      { zone, url: targetUrl, format: 'raw' },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        timeout: timeoutMs,
-      }
-    );
+    // ScraperAPI — GET request with api_key + url as query params
+    const scraperUrl = `http://api.scraperapi.com?api_key=${apiKey}&url=${encodeURIComponent(targetUrl)}&country_code=in&render=false`;
+    const response = await axios.get(scraperUrl, {
+      timeout: timeoutMs,
+    });
     return response.data;
   }
 
