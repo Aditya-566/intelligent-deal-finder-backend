@@ -33,34 +33,35 @@ async function scrapeAmazon(query) {
         const products = results
           .filter(item => item.name || item.title)
           .map(item => {
-            // Price can come in various formats
-            const priceRaw = item.price || item.price_string || '';
-            const priceClean = String(priceRaw).replace(/[^0-9.]/g, '');
+            // Price can come in various formats — handle ₹ and comma-separated Indian prices
+            const priceRaw = item.price || item.price_string || item.sale_price || '';
+            // Remove currency symbols, commas, spaces; keep digits and decimal
+            const priceClean = String(priceRaw).replace(/[^\d.]/g, '');
             const price = parseFloat(priceClean);
 
-            const origRaw = item.original_price || item.list_price || '';
-            const origClean = String(origRaw).replace(/[^0-9.]/g, '');
+            const origRaw = item.original_price || item.list_price || item.was_price || '';
+            const origClean = String(origRaw).replace(/[^\d.]/g, '');
             const originalPrice = parseFloat(origClean) || null;
 
-            const productUrl = item.url || item.link || item.asin
-              ? `https://www.amazon.in/dp/${item.asin}`
-              : '';
+            // Fix: the original ternary was broken — item.url || item.link takes priority
+            const productUrl = item.url || item.link ||
+              (item.asin ? `https://www.amazon.in/dp/${item.asin}` : '');
 
             return {
               productName: item.name || item.title,
               price: isNaN(price) ? null : price,
               originalPrice: originalPrice && originalPrice > price ? originalPrice : null,
               imageUrl: item.image || item.thumbnail || '',
-              productUrl: item.url || item.link || productUrl,
+              productUrl,
               source: 'Amazon',
-              rating: item.rating ? parseFloat(item.rating) : null,
-              reviews: item.reviews || item.reviews_count || null,
+              rating: item.stars ? parseFloat(item.stars) : (item.rating ? parseFloat(item.rating) : null),
+              reviews: item.total_reviews || item.reviews || item.reviews_count || null,
             };
           })
-          .filter(p => p.price && p.price > 0 && p.productName);
+          .filter(p => p.price && p.price > 0 && p.productName && p.productUrl);
 
         console.log(`[Amazon] Found ${products.length} valid products`);
-        return products.slice(0, 10);
+        return products.slice(0, 15);
 
       } catch (structuredErr) {
         console.warn(`[Amazon] Structured endpoint failed (${structuredErr.message}), falling back to HTML scraping`);
@@ -112,9 +113,9 @@ async function scrapeAmazon(query) {
     });
 
     console.log(`[Amazon] HTML scrape found ${products.length} products`);
-    return products.slice(0, 10);
+    return products.slice(0, 15);
 
-  }, 2, 3000);
+  }, 1, 2000);
 }
 
 module.exports = { scrapeAmazon };

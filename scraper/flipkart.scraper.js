@@ -67,8 +67,8 @@ async function scrapeFlipkart(query) {
     }
 
     console.log(`[Flipkart] Found ${products.length} products`);
-    return products.slice(0, 10);
-  }, 2, 3000);
+    return products.slice(0, 15);
+  }, 1, 2000);
 }
 
 /**
