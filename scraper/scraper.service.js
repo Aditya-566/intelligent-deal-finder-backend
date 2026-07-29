@@ -58,11 +58,29 @@ async function scrapeAll(query, options = {}) {
     return true;
   });
 
-  // ── Filter by brand/category ─────────────────────────────────────────────────
-  // IMPORTANT: Only filter if the brand/category term is NOT already in the search query.
-  // The query already contains the term, so the scrapers already searched for it.
-  // Over-filtering causes 0 results.
-  let filtered = unique;
+  // ── Relevance filtering ─────────────────────────────────────────────────────
+  // Tokenize query into keywords, score each product by keyword match ratio,
+  // and filter out products where fewer than 50% of keywords match.
+  const queryKeywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 1);
+  const minMatchRatio = queryKeywords.length <= 2 ? 0.5 : 0.5;
+
+  let filtered = unique.map(p => {
+    const nameLower = p.productName.toLowerCase();
+    const matchCount = queryKeywords.filter(kw => nameLower.includes(kw)).length;
+    const relevanceScore = queryKeywords.length > 0 ? matchCount / queryKeywords.length : 1;
+    return { ...p, relevanceScore };
+  });
+
+  // Keep only products that match at least half the keywords
+  const relevant = filtered.filter(p => p.relevanceScore >= minMatchRatio);
+  if (relevant.length > 0) {
+    filtered = relevant;
+    console.log(`[Scraper] Relevance filter kept ${filtered.length}/${unique.length} products (≥${minMatchRatio * 100}% keyword match)`);
+  } else {
+    // Fallback: sort by relevance score descending so best matches come first
+    filtered.sort((a, b) => b.relevanceScore - a.relevanceScore);
+    console.warn(`[Scraper] Relevance filter would remove all products — returning all sorted by relevance`);
+  }
   const lowerQuery = query.toLowerCase();
 
   if (options.brand && options.brand.trim() !== '') {
